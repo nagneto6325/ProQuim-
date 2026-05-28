@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block page_title %}Reportes{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+  <div>
+    <h1>Reportes y Análisis</h1>
+    <p class="text-muted">Estadísticas de producción y consumo</p>
+  </div>
+  <!-- botones para exportar datos -->
+  <div style="display:flex;gap:8px;">
+    <a href="/exportar_excel" class="btn btn-secondary btn-sm">
+      <i class="fas fa-file-csv"></i> Exportar CSV
+    </a>
+    <a href="/exportar_pdf" class="btn btn-primary btn-sm">
+      <i class="fas fa-file-pdf"></i> Exportar PDF
+    </a>
+  </div>
+</div>
+
+<!-- KPIs: indicadores principales -->
+<div class="grid-3">
+  <div class="kpi-card">
+    <div class="kpi-icon blue"><i class="fas fa-list-ol"></i></div>
+    <div class="kpi-info">
+      <div class="kpi-label">Total Órdenes</div>
+      <div class="kpi-number">{{ total_ordenes }}</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon green"><i class="fas fa-check-double"></i></div>
+    <div class="kpi-info">
+      <div class="kpi-label">Completadas</div>
+      <div class="kpi-number">{{ ordenes_completadas }}</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon cyan"><i class="fas fa-tachometer-alt"></i></div>
+    <div class="kpi-info">
+      <div class="kpi-label">Eficiencia</div>
+      <div class="kpi-number">{{ eficiencia }}%</div>
+    </div>
+  </div>
+</div>
+
+<!-- graficas: estado de ordenes y consumo de materias primas -->
+<div class="chart-grid">
+  <div class="card">
+    <h3>Estado de Órdenes</h3>
+    <div class="chart-sm"><canvas id="estadoChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Consumo de Materias Primas</h3>
+    <div class="chart-sm"><canvas id="consumoChart"></canvas></div>
+  </div>
+</div>
+
+<!-- tabla con el detalle de todas las ordenes -->
+<div class="card">
+  <h3>Detalle de Órdenes</h3>
+  <div class="table-wrapper">
+    </table>
+      <thead>
+        <tr><th>#</th><th>Receta</th><th>Cantidad</th><th>Estado</th><th>Fecha</th><th>Lote</th></tr>
+      </thead>
+      <tbody>
+        {% for o in ordenes %}
+        <tr>
+          <td class="text-muted">{{ o.orden_id }}</td>
+          <td><strong>{{ o.receta_nombre }}</strong></td>
+          <td>{{ o.cantidad }} kg</td>
+          <td>
+            {% if o.estado == 'Completada' %}
+            <span class="badge badge-success">{{ o.estado }}</span>
+            {% else %}
+            <span class="badge badge-warning">{{ o.estado }}</span>
+            {% endif %}
+          </td>
+          <td class="text-muted">{{ o.fecha }}</td>
+          <td class="text-muted">{{ o.lote or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 12;
+
+// grafica de torta: estado de las ordenes (completadas, pendientes)
+fetch('/api/estado_ordenes').then(r=>r.json()).then(d=>{
+  new Chart(document.getElementById('estadoChart'), {
+    type:'doughnut',
+    data:{
+      labels:d.estados,
+      datasets:[{data:d.cantidades, backgroundColor:['#10b981','#f59e0b','#ef4444'], borderWidth:0, hoverOffset:6}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true, cutout:'65%',
+      plugins:{legend:{position:'bottom', labels:{padding:16, usePointStyle:true}}}
+    }
+  });
+});
+
+// grafica de barras horizontal: consumo de cada materia prima
+fetch('/api/consumo_materias').then(r=>r.json()).then(d=>{
+  new Chart(document.getElementById('consumoChart'), {
+    type:'bar',
+    data:{
+      labels:d.materiales,
+      datasets:[{
+        label:'Consumo (kg/L)', data:d.consumos,
+        backgroundColor:'rgba(6,182,212,.7)', borderRadius:6, borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true, indexAxis:'y',
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:'#f1f5f9'}},
+        y:{grid:{display:false}}
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block page_title %}Inventario{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Control de Inventario</h1>
+  <p class="text-muted">Stock actual de materias primas — se actualiza automáticamente al ejecutar órdenes de producción</p>
+</div>
+
+<!-- detecta los materiales con stock bajo y los muestra como alertas -->
+{% set criticos = [] %}
+{% for item in inventario %}{% if item.cantidad|float < item.stock_minimo|float %}{% set _ = criticos.append(item) %}{% endif %}{% endfor %}
+
+{% if criticos %}
+<div style="margin-bottom:20px;">
+  {% for item in criticos %}
+  <div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle"></i>
+    <strong>{{ item.nombre }}</strong>: {{ item.cantidad }} {{ item.unidad }} disponibles — mínimo requerido: {{ item.stock_minimo }} {{ item.unidad }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <h3 style="margin:0;">Stock Actual</h3>
+    <span style="font-size:12px;color:var(--text-muted);">
+      <i class="fas fa-info-circle"></i>
+      El stock se descuenta automáticamente al ejecutar una orden.
+      Usa "Registrar entrada" solo para agregar stock por compra o reposición.
+    </span>
+  </div>
+  <div class="table-wrapper" style="margin-top:16px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Material</th>
+          <th>Stock actual</th>
+          <th>Mínimo</th>
+          <th>Unidad</th>
+          <th>Estado</th>
+          <th>Registrar entrada</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in inventario %}
+        <tr>
+          <td><strong>{{ item.nombre }}</strong></td>
+          <td>
+            <span style="font-weight:600;font-size:15px;">{{ item.cantidad }}</span>
+          </td>
+          <td class="text-muted">{{ item.stock_minimo }}</td>
+          <td class="text-muted">{{ item.unidad }}</td>
+          <td>
+            {% if item.cantidad|float < item.stock_minimo|float %}
+            <span class="badge badge-danger"><i class="fas fa-times"></i> Crítico</span>
+            {% else %}
+            <span class="badge badge-success"><i class="fas fa-check"></i> Normal</span>
+            {% endif %}
+          </td>
+          <td>
+            <!-- Esta columna es solo para ingresos manuales (compras/reposición) -->
+            <!-- El stock se descuenta solo al ejecutar órdenes de producción -->
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input
+                type="number"
+                id="entrada-{{ item.id }}"
+                min="0"
+                placeholder="Cantidad a agregar"
+                style="width:150px;"
+              >
+              <button
+                class="btn btn-secondary btn-sm"
+                onclick="registrarEntrada({{ item.id }}, '{{ item.nombre }}')"
+                title="Agregar stock por compra o reposición"
+              >
+                <i class="fas fa-plus"></i> Agregar
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// registra una entrada de stock (compra o reposición manual)
+// NO sobrescribe — suma al stock actual
+function registrarEntrada(quimicoId, nombre) {
+  const input = document.getElementById('entrada-' + quimicoId);
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val <= 0) {
+    showToast('Ingresa una cantidad mayor a 0', 'warning');
+    return;
+  }
+  if (!confirm(`¿Confirmas agregar ${val} unidades de "${nombre}" al inventario?`)) return;
+
+  fetch('/actualizar_stock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quimico_id: quimicoId, cantidad_agregar: val })
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      showToast(
+        d.alerta || `Stock de "${nombre}" actualizado correctamente`,
+        d.alerta ? 'warning' : 'success'
+      );
+      setTimeout(() => location.reload(), 1400);
+    } else {
+      showToast('Error: ' + (d.error || 'No se pudo actualizar'), 'danger');
+    }
+  });
+}
+</script>
+{% endblock %}

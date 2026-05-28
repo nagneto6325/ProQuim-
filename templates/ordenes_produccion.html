@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block page_title %}Órdenes de Producción{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Órdenes de Producción</h1>
+  <p class="text-muted">Gestión y ejecución de órdenes</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Órdenes Registradas</h3>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Receta</th><th>Cantidad</th>
+          <th>Estado</th><th>Fecha</th><th>Trazabilidad</th><th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for orden in ordenes %}
+        <tr>
+          <td class="text-muted">{{ orden.id }}</td>
+          <td>
+            <strong>
+              {% for r in recetas %}{% if r.id == orden.receta_id %}{{ r.nombre }}{% endif %}{% endfor %}
+            </strong>
+          </td>
+          <td>{{ orden.cantidad_producir }} kg</td>
+          <td>
+            {% if orden.estado == 'Completada' %}
+            <span class="badge badge-success"><i class="fas fa-check"></i> {{ orden.estado }}</span>
+            {% else %}
+            <span class="badge badge-warning"><i class="fas fa-clock"></i> {{ orden.estado }}</span>
+            {% endif %}
+          </td>
+          <td class="text-muted">{{ orden.fecha }}</td>
+          <td>
+            {% if orden.trazabilidad %}
+            <button class="btn btn-secondary btn-sm" onclick="verDetalleTrazabilidad(
+              '{{ orden.trazabilidad.lote_produccion }}',
+              '{% for r in recetas %}{% if r.id == orden.receta_id %}{{ r.nombre }}{% endif %}{% endfor %}',
+              '{{ orden.cantidad_producir }}',
+              '{{ orden.trazabilidad.responsable }}',
+              '{{ orden.trazabilidad.fecha_produccion }}'
+            )">
+              <i class="fas fa-qrcode"></i> Ver detalle
+            </button>
+            {% else %}
+            <span class="text-muted">Sin trazabilidad</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if orden.estado == 'Pendiente' %}
+            <button class="btn btn-primary btn-sm" onclick="ejecutar({{ orden.id | int }})">
+              <i class="fas fa-play"></i> Ejecutar
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- formulario para crear una orden nueva -->
+<div class="card">
+  <h3>Nueva Orden</h3>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:flex-end;">
+    <div class="form-group" style="margin:0;flex:2;min-width:180px;">
+      <label>Receta</label>
+      <select id="receta_id">
+        <option value="">Seleccionar receta...</option>
+        {% for r in recetas %}
+        <option value="{{ r.id }}">{{ r.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;flex:1;min-width:120px;">
+      <label>Cantidad (kg)</label>
+      <input type="number" id="cantidad" placeholder="0">
+    </div>
+    <button class="btn btn-primary" onclick="crear()">
+      <i class="fas fa-plus"></i> Crear orden
+    </button>
+  </div>
+</div>
+
+<!-- Modal de detalle de trazabilidad -->
+<div class="modal-overlay" id="modalTrazabilidad">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-qrcode" style="color:var(--primary);"></i> Detalle de Trazabilidad</h3>
+      <button class="modal-close" onclick="cerrarModalTrazabilidad()"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="padding: 8px 0;">
+      <table style="width:100%; border-collapse:collapse;">
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:12px 8px; font-weight:600; color:var(--text-muted); width:40%;">
+              <i class="fas fa-barcode" style="margin-right:8px;color:var(--primary);"></i>Código de Lote
+            </td>
+            <td style="padding:12px 8px;" id="traz_lote">—</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:12px 8px; font-weight:600; color:var(--text-muted);">
+              <i class="fas fa-book" style="margin-right:8px;color:var(--primary);"></i>Receta Usada
+            </td>
+            <td style="padding:12px 8px;" id="traz_receta">—</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:12px 8px; font-weight:600; color:var(--text-muted);">
+              <i class="fas fa-weight" style="margin-right:8px;color:var(--primary);"></i>Cantidad Producida
+            </td>
+            <td style="padding:12px 8px;" id="traz_cantidad">—</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:12px 8px; font-weight:600; color:var(--text-muted);">
+              <i class="fas fa-user" style="margin-right:8px;color:var(--primary);"></i>Responsable
+            </td>
+            <td style="padding:12px 8px;" id="traz_responsable">—</td>
+          </tr>
+          <tr>
+            <td style="padding:12px 8px; font-weight:600; color:var(--text-muted);">
+              <i class="fas fa-calendar-check" style="margin-right:8px;color:var(--primary);"></i>Fecha de Producción
+            </td>
+            <td style="padding:12px 8px;" id="traz_fecha">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button class="btn btn-secondary" onclick="cerrarModalTrazabilidad()">Cerrar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// crea una orden nueva en estado pendiente
+function crear() {
+  const rid  = document.getElementById('receta_id').value;
+  const cant = document.getElementById('cantidad').value;
+  if (!rid || !cant) { showToast('Complete todos los campos', 'warning'); return; }
+  fetch('/crear_orden', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({receta_id:parseInt(rid), cantidad:parseInt(cant)})
+  }).then(r=>r.json()).then(d=>{
+    showToast(d.mensaje || d.error, d.success ? 'success' : 'danger');
+    if (d.success) setTimeout(()=>location.reload(), 1200);
+  });
+}
+
+// ejecuta una orden, descuenta stock y genera lote
+function ejecutar(id) {
+  if (!confirm('¿Ejecutar orden #' + id + '?')) return;
+  fetch('/ejecutar_orden', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({orden_id: id})
+  }).then(r=>r.json()).then(d=>{
+    showToast(d.mensaje || d.error, d.success ? 'success' : 'danger');
+    if (d.success) setTimeout(()=>location.reload(), 1200);
+  });
+}
+
+// muestra el modal con el detalle completo de trazabilidad
+function verDetalleTrazabilidad(lote, receta, cantidad, responsable, fecha) {
+  document.getElementById('traz_lote').textContent        = lote        || '—';
+  document.getElementById('traz_receta').textContent      = receta      || '—';
+  document.getElementById('traz_cantidad').textContent    = cantidad ? cantidad + ' kg' : '—';
+  document.getElementById('traz_responsable').textContent = responsable  || '—';
+  document.getElementById('traz_fecha').textContent       = fecha        || '—';
+  document.getElementById('modalTrazabilidad').classList.add('open');
+}
+
+function cerrarModalTrazabilidad() {
+  document.getElementById('modalTrazabilidad').classList.remove('open');
+}
+</script>
+{% endblock %}

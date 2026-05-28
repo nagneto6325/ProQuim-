@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block page_title %}Configuración{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Configuración del Sistema</h1>
+  <p class="text-muted">Gestión de usuarios y roles</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Usuarios Registrados</h3>
+    <button class="btn btn-primary btn-sm" onclick="abrirModal()">
+      <i class="fas fa-user-plus"></i> Nuevo usuario
+    </button>
+  </div>
+  {% if usuarios %}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th>Usuario</th><th>Rol</th><th>Permisos</th></tr>
+      </thead>
+      <tbody>
+        {% for user in usuarios %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;">
+                {{ user.username[0]|upper }}
+              </div>
+              <strong>{{ user.username }}</strong>
+            </div>
+          </td>
+          <td><span class="tag">{{ user.rol }}</span></td>
+          <td class="text-muted">
+            <!-- cada rol tiene permisos distintos, esto es solo informativo -->
+            {% if user.rol == 'Administrador' %}Acceso total al sistema
+            {% elif user.rol == 'Gerente' %}Reportes y dashboard
+            {% elif user.rol == 'Jefe de Produccion' %}Recetas y órdenes
+            {% elif user.rol == 'Responsable de Inventario' %}Control de stock
+            {% else %}Órdenes asignadas{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><i class="fas fa-users"></i> No hay usuarios registrados</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Patrones de Diseño Activos</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:14px;">
+    <!-- lista de patrones implementados en el sistema -->
+    {% for p in [
+      ('fa-database','Singleton','Conexión única a SQLite','blue'),
+      ('fa-industry','Factory Method','Creación de reportes','green'),
+      ('fa-bell','Observer','Alertas de stock','yellow'),
+      ('fa-random','Strategy','Validación química','cyan'),
+      ('fa-layer-group','Decorator','Exportación PDF/Excel','red')
+    ] %}
+    <div style="background:var(--bg);border-radius:var(--radius);padding:14px;display:flex;gap:10px;align-items:flex-start;">
+      <div class="kpi-icon {{ p[3] }}" style="width:36px;height:36px;border-radius:10px;font-size:.9rem;flex-shrink:0;">
+        <i class="fas {{ p[0] }}"></i>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:13px;">{{ p[1] }}</div>
+        <div class="text-muted" style="font-size:12px;">{{ p[2] }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Modal para crear nuevo usuario, solo visible para admin -->
+<div class="modal-overlay" id="modalUsuario">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-plus" style="color:var(--primary);"></i> Nuevo Usuario</h3>
+      <button class="modal-close" onclick="cerrarModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="form-group">
+      <label>Usuario</label>
+      <input type="text" id="nuevoUser" placeholder="nombre de usuario">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="nuevoPass" placeholder="••••••••">
+    </div>
+    <div class="form-group">
+      <label>Rol</label>
+      <select id="nuevoRol">
+        <option value="Administrador">Administrador</option>
+        <option value="Gerente">Gerente</option>
+        <option value="Jefe de Produccion">Jefe de Producción</option>
+        <option value="Responsable de Inventario">Responsable de Inventario</option>
+        <option value="Operario">Operario</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="crearUsuario()">
+        <i class="fas fa-save"></i> Crear
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// funciones para el modal de usuario
+function abrirModal() { document.getElementById('modalUsuario').classList.add('open'); }
+function cerrarModal() { document.getElementById('modalUsuario').classList.remove('open'); }
+
+// envia los datos para crear un usuario nuevo
+function crearUsuario() {
+  const username = document.getElementById('nuevoUser').value;
+  const password = document.getElementById('nuevoPass').value;
+  const rol      = document.getElementById('nuevoRol').value;
+  if (!username || !password) { showToast('Complete todos los campos', 'warning'); return; }
+  fetch('/crear_usuario', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({username, password, rol})
+  }).then(r=>r.json()).then(d=>{
+    showToast(d.mensaje || (d.success ? 'Usuario creado' : d.error), d.success ? 'success' : 'danger');
+    if (d.success) { cerrarModal(); setTimeout(()=>location.reload(), 1200); }
+  });
+}
+</script>
+{% endblock %}

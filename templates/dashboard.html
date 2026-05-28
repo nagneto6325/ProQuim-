@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <p class="text-muted">Bienvenido, <strong>{{ user }}</strong> — {{ rol }}</p>
+</div>
+
+<!-- KPIs: indicadores principales del sistema -->
+<div class="grid-3">
+  <div class="kpi-card">
+    <div class="kpi-icon blue"><i class="fas fa-book"></i></div>
+    <div class="kpi-info">
+      <div class="kpi-label">Recetas</div>
+      <div class="kpi-number">{{ total_recetas }}</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon yellow"><i class="fas fa-clipboard-list"></i></div>
+    <div class="kpi-info">
+      <div class="kpi-label">Órdenes Activas</div>
+      <div class="kpi-number">{{ ordenes_activas }}</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon red"><i class="fas fa-exclamation-triangle"></i></div>
+    <div class="kpi-info">
+      <div class="kpi-label">Alertas Stock</div>
+      <div class="kpi-number" style="color:var(--danger);">{{ alertas_stock }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- graficas: produccion mensual y categorias -->
+<div class="chart-grid">
+  <div class="card">
+    <h3>Producción por Mes</h3>
+    <div class="chart-sm"><canvas id="prodChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Categorías de Recetas</h3>
+    <div class="chart-sm"><canvas id="catChart"></canvas></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// colores para las graficas
+const COLORS = ['#4f46e5','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 12;
+
+// grafica de barras: ordenes completadas por mes
+fetch('/api/produccion_mensual').then(r=>r.json()).then(d=>{
+  new Chart(document.getElementById('prodChart'), {
+    type:'bar',
+    data:{
+      labels:d.meses,
+      datasets:[{
+        label:'Órdenes completadas',
+        data:d.cantidades,
+        backgroundColor:'rgba(79,70,229,.7)',
+        borderRadius:6,
+        borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{grid:{color:'#f1f5f9'}, ticks:{stepSize:1}},
+        x:{grid:{display:false}}
+      }
+    }
+  });
+});
+
+// grafica de torta: distribucion de recetas por categoria
+fetch('/api/distribucion_categoria').then(r=>r.json()).then(d=>{
+  new Chart(document.getElementById('catChart'), {
+    type:'doughnut',
+    data:{
+      labels:d.categorias,
+      datasets:[{data:d.cantidades, backgroundColor:COLORS, borderWidth:0, hoverOffset:6}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      cutout:'65%',
+      plugins:{legend:{position:'bottom', labels:{padding:16, usePointStyle:true}}}
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block page_title %}Recetas{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+  <div>
+    <h1>Gestión de Recetas</h1>
+    <p class="text-muted">Recetas técnicas registradas en el sistema</p>
+  </div>
+  <button class="btn btn-primary" onclick="abrirModal()">
+    <i class="fas fa-plus"></i> Nueva Receta
+  </button>
+</div>
+
+<div class="card">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Categoría</th>
+          <th>Rendimiento</th>
+          <th>Compatibilidad</th>
+          <th>Ingredientes</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for receta in recetas %}
+        <tr id="fila-receta-{{ receta.id }}">
+          <td><strong>{{ receta.nombre }}</strong></td>
+          <td><span class="tag">{{ receta.categoria }}</span></td>
+          <td>{{ receta.rendimiento }} g</td>
+          <td>
+            {% if receta.compatible %}
+            <span class="badge badge-success"><i class="fas fa-check"></i> Compatible</span>
+            {% else %}
+            <span class="badge badge-danger"><i class="fas fa-times"></i> Incompatible</span>
+            {% endif %}
+          </td>
+          <td class="text-muted">
+            {% for ing in receta.ingredientes %}
+              {{ ing.nombre }} ({{ ing.gramos }}g){% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+          <td>
+            <button
+              class="btn btn-danger btn-sm"
+              onclick="eliminarReceta({{ receta.id }}, '{{ receta.nombre }}')"
+              title="Eliminar receta"
+            >
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- seccion de validacion quimica donde se puede cambiar la estrategia (patron strategy) -->
+<div class="card">
+  <h3>Validación Química — Strategy Pattern</h3>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;">
+    <select id="estrategiaSelect" style="width:auto;">
+      <option value="basica">Básica (solo incompatibilidades)</option>
+      <option value="gramaje">Gramaje (debe sumar 1000 g)</option>
+      <option value="completa">Completa (activos + proporción)</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="cambiarEstrategia()">
+      <i class="fas fa-exchange-alt"></i> Cambiar estrategia
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="validarDemo()">
+      <i class="fas fa-vial"></i> Probar validación
+    </button>
+  </div>
+  <div id="resultadoValidacion" style="margin-top:12px;font-size:13px;"></div>
+</div>
+
+<!-- modal para crear una receta nueva -->
+<div class="modal-overlay" id="modalReceta">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-book" style="color:var(--primary);"></i> Nueva Receta</h3>
+      <button class="modal-close" onclick="cerrarModal()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <form id="formReceta">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="nombreReceta" placeholder="Ej: Detergente Neutro" required>
+      </div>
+      <div class="form-group">
+        <label>Categoría</label>
+        <select id="categoriaReceta">
+          <option value="Limpieza">Limpieza</option>
+          <option value="Desinfeccion">Desinfección</option>
+          <option value="Multiusos">Multiusos</option>
+          <option value="Industrial">Industrial</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Rendimiento (g)</label>
+        <input type="number" id="rendimientoReceta" value="1000" required>
+      </div>
+      <div class="form-group">
+        <label>Ingredientes</label>
+        <div id="ingredientesLista"></div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="agregarIngrediente()" style="margin-top:8px;">
+          <i class="fas fa-plus"></i> Agregar ingrediente
+        </button>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-save"></i> Guardar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const quimicos = [{% for q in quimicos %}"{{ q.nombre }}"{% if not loop.last %},{% endif %}{% endfor %}];
+
+function ingredienteHTML() {
+  const opts = quimicos.map(q=>`<option value="${q}">${q}</option>`).join('');
+  return `<div class="ingrediente-item" style="display:flex;gap:8px;margin-bottom:8px;">
+    <select class="quimicoSelect" style="flex:2;">${opts}</select>
+    <input type="number" class="gramosInput" placeholder="Gramos" style="flex:1;">
+    <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">
+      <i class="fas fa-trash"></i>
+    </button>
+  </div>`;
+}
+
+function agregarIngrediente() {
+  document.getElementById('ingredientesLista').insertAdjacentHTML('beforeend', ingredienteHTML());
+}
+
+function abrirModal() {
+  document.getElementById('modalReceta').classList.add('open');
+  document.getElementById('ingredientesLista').innerHTML = ingredienteHTML();
+}
+
+function cerrarModal() {
+  document.getElementById('modalReceta').classList.remove('open');
+}
+
+// elimina una receta por ID, con confirmación
+function eliminarReceta(id, nombre) {
+  if (!confirm(`¿Eliminar la receta "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  fetch(`/eliminar_receta/${id}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        showToast(d.mensaje, 'success');
+        // eliminar la fila de la tabla sin recargar
+        const fila = document.getElementById('fila-receta-' + id);
+        if (fila) fila.remove();
+      } else {
+        showToast(d.error, 'danger');
+      }
+    });
+}
+
+// guarda la receta nueva en la base de datos
+document.getElementById('formReceta').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const ingredientes = [];
+  document.querySelectorAll('.ingrediente-item').forEach(item => {
+    const q = item.querySelector('.quimicoSelect').value;
+    const g = parseInt(item.querySelector('.gramosInput').value);
+    if (q && g) ingredientes.push({nombre:q, gramos:g});
+  });
+  if (!document.getElementById('nombreReceta').value || ingredientes.length === 0) {
+    showToast('Complete nombre y al menos un ingrediente', 'warning'); return;
+  }
+  fetch('/crear_receta', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      nombre: document.getElementById('nombreReceta').value,
+      categoria: document.getElementById('categoriaReceta').value,
+      rendimiento: parseInt(document.getElementById('rendimientoReceta').value),
+      ingredientes
+    })
+  }).then(r=>r.json()).then(d=>{
+    showToast(d.mensaje, d.success ? 'success' : 'danger');
+    if (d.success) { cerrarModal(); setTimeout(()=>location.reload(), 1200); }
+  });
+});
+
+function cambiarEstrategia() {
+  const tipo = document.getElementById('estrategiaSelect').value;
+  fetch('/cambiar_validacion', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({tipo})
+  }).then(r=>r.json()).then(d=>showToast(d.mensaje, 'success'));
+}
+
+function validarDemo() {
+  const tipo = document.getElementById('estrategiaSelect').value;
+  fetch('/validar_receta', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      tipo,
+      ingredientes:[
+        {nombre:'Alcohol Etilico', gramos:300},
+        {nombre:'Amoniaco', gramos:100},
+        {nombre:'Agua Destilada', gramos:600}
+      ]
+    })
+  }).then(r=>r.json()).then(d=>{
+    const el = document.getElementById('resultadoValidacion');
+    el.innerHTML = `<div class="alert ${d.compatible ? 'alert-success' : 'alert-danger'}">
+      <i class="fas ${d.compatible ? 'fa-check-circle' : 'fa-times-circle'}"></i>
+      ${d.mensaje}
+    </div>`;
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,6 @@
+from controllers.auth_controller import auth_bp
+from controllers.recetas_controller import recetas_bp
+from controllers.ordenes_controller import ordenes_bp
+from controllers.inventario_controller import inventario_bp
+from controllers.trazabilidad_controller import trazabilidad_bp
+from controllers.reportes_controller import reportes_bp
